@@ -10,7 +10,8 @@
 
 #include <FastLED.h>
 
-#define NUM_LEDS			    89
+#define NUM_LEDS		  89
+#define BRAKE_LEDS        58
 #define INDICATOR_MS      5
 #define BRIGHTNESS        200
 
@@ -20,14 +21,12 @@
 #define R_INDICATOR_INPUT	35
 
 // Connections to the LED strips
-#define L_BRAKE_LED_PIN		  44
-#define R_BRAKE_LED_PIN		  
+#define BRAKE_LED_PIN		  44
 #define L_INDICATOR_LED_PIN	46
 #define R_INDICATOR_LED_PIN	48
 
 // LED arrays for the lights
-CRGB l_brake_leds[NUM_LEDS];
-CRGB r_brake_leds[NUM_LEDS];
+CRGB brake_leds[BRAKE_LEDS];
 CRGB l_indicator_leds[NUM_LEDS];
 CRGB r_indicator_leds[NUM_LEDS];
 
@@ -35,8 +34,7 @@ CRGB r_indicator_leds[NUM_LEDS];
 uint8_t indicatorLEDsLit = 0;
 
 void setup() {
-	FastLED.addLeds<WS2812B, L_BRAKE_LED_PIN, GRB>(l_brake_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
-	//FastLED.addLeds<WS2812B, R_BRAKE_LED_PIN, GRB>(r_brake_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+	FastLED.addLeds<WS2812B, BRAKE_LED_PIN, GRB>(brake_leds, BRAKE_LEDS).setCorrection(TypicalLEDStrip);
 	FastLED.addLeds<WS2812B, L_INDICATOR_LED_PIN, GRB>(l_indicator_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 	FastLED.addLeds<WS2812B, R_INDICATOR_LED_PIN, GRB>(r_indicator_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
 	FastLED.setBrightness(BRIGHTNESS);
@@ -57,12 +55,10 @@ void loop() {
 	
 	// Brake lights
 	if (brakeInput) {
-		fill_solid(l_brake_leds, NUM_LEDS, CRGB::Red);
-		fill_solid(r_brake_leds, NUM_LEDS, CRGB::Red);
+		fill_solid(brake_leds, BRAKE_LEDS, CRGB::Red);
 	}
 	else {
-		fill_solid(l_brake_leds, NUM_LEDS, CRGB::Black);
-		fill_solid(r_brake_leds, NUM_LEDS, CRGB::Black);
+		fill_solid(brake_leds, BRAKE_LEDS, CRGB::Black);
 	}
 
 	// Indicators
@@ -90,14 +86,12 @@ void loop() {
 }
 
 void indicatorAnimation(CRGB *leds) {
-	for (int i = 0; i < (indicatorLEDsLit); i++) {
+    for (int i = 0; i < (indicatorLEDsLit); i++) {
     int offset = (i-15);
-    int count = i;
     if (offset>=0) {
-      leds[offset] = CRGB::Black;
-      count++;
+      leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
     }
-		leds[i] = CRGB::Orange;
+    leds[i] = CRGB::Orange;           // To-do, figure out how to turn off the last 15 and also reverse the chase animation
 	}
 	
 	EVERY_N_MILLISECONDS(INDICATOR_MS) {
