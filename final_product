@@ -1,0 +1,299 @@
+/*
+ Name:		CarInterface.ino
+ Created:	3/17/2021 4:15:11 PM
+ Author:	Scott Marley; Modified by Extremerotary
+ 
+ Code and schematic demonstrating how to interface an Arduino with 12V signals
+ from a vehicle. This code is for educational purposes only, and should not be
+ used on public roads unless you know it is legal where you live.
+*/
+
+#include <FastLED.h>
+
+#define NUM_LEDS		      89
+#define BRAKE_LEDS        58
+#define FRONT_LEDS        47
+#define INTERIOR_LEDS     60
+#define WHITE_LEDS        6
+#define INDICATOR_MS      5
+#define BRAKE_MS          16
+#define RBRAKE_MS         10
+#define BRIGHTNESS        255
+
+// Connections to the 12V signals from vehicle
+#define BRAKE_INPUT			  7
+#define SOLID_INPUT       8
+#define L_INDICATOR_INPUT	9
+#define R_INDICATOR_INPUT	10
+#define INTERIOR_INPUT    11
+
+// Connections to the LED strips
+#define BRAKE_LED_PIN		  2
+#define L_INDICATOR_LED_PIN	3
+#define R_INDICATOR_LED_PIN	4
+#define FRONT_LED_PIN       5
+#define INTERIOR_PIN        6
+
+// LED arrays for the lights
+CRGB brake_leds[BRAKE_LEDS];
+CRGB l_indicator_leds[NUM_LEDS];
+CRGB r_indicator_leds[NUM_LEDS];
+CRGB front_leds[FRONT_LEDS];
+CRGB interior_leds[INTERIOR_LEDS];
+
+// Used for indicator animation
+uint8_t indicatorLEDsLit = 0;
+uint8_t brakeindicatorLEDsLit = 0;
+uint8_t brakeindicatorLEDsLit2 = 0;
+uint8_t frontindicatorLEDsLit2 = 0;
+int brake = 0;
+
+// Potentiometer stuff
+float EMA_a = 0.15;      //initialization of EMA alpha
+int EMA_S = 0;  
+int BN = 0;        //initialization of EMA S
+
+int potPin = A3;
+int brightnesspin = A2;
+int icolorpin = A1;
+int icolor;
+int color;
+int potVal;
+int potColor;
+int brightness;
+int BRIGHT;
+
+void setup() {
+	FastLED.addLeds<WS2812B, BRAKE_LED_PIN, GRB>(brake_leds, BRAKE_LEDS).setCorrection(TypicalLEDStrip);
+	FastLED.addLeds<WS2812B, L_INDICATOR_LED_PIN, GRB>(l_indicator_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+	FastLED.addLeds<WS2812B, R_INDICATOR_LED_PIN, GRB>(r_indicator_leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<WS2812B, FRONT_LED_PIN, GRB>(front_leds, BRAKE_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<WS2812B, INTERIOR_PIN, GRB>(interior_leds, INTERIOR_LEDS).setCorrection(TypicalLEDStrip);
+	FastLED.setBrightness(BRIGHTNESS);
+
+	pinMode(BRAKE_INPUT, INPUT);
+  pinMode(SOLID_INPUT, INPUT);
+  pinMode(L_INDICATOR_INPUT, INPUT);
+	pinMode(R_INDICATOR_INPUT, INPUT);
+  pinMode(INTERIOR_PIN, INPUT);
+
+ Serial.begin(9600);
+}
+
+void loop() {
+
+	// Read the state of the inputs
+	bool brakeInput = digitalRead(BRAKE_INPUT);
+	bool LIndicatorInput = digitalRead(L_INDICATOR_INPUT);
+	bool RIndicatorInput = digitalRead(R_INDICATOR_INPUT);
+  bool solidInput = digitalRead(SOLID_INPUT);
+  bool interiorInput = digitalRead(INTERIOR_INPUT);
+
+  if (interiorInput) {
+    brightness = analogRead(brightnesspin);
+    icolor = analogRead(potPin);
+    color = map(EMA_S, 0, 1000, 0, 255);
+    BRIGHT = map(brightness, 0, 1000, 0, 255);
+//    FastLED.setBrightness(BRIGHT);
+    for (int i=0; i<INTERIOR_LEDS; i++) {
+      Serial.println("we are here");
+      if (i>= ((INTERIOR_LEDS - WHITE_LEDS)/2 ) && (i<(INTERIOR_LEDS-i+WHITE_LEDS))) {
+        interior_leds[i] = CRGB::White;
+      } else
+        interior_leds[i] = CHSV(color, 255, 100);
+    }
+
+//    FastLED.show();
+//    delay(25);
+}  
+
+  if (solidInput) {
+    potVal = analogRead(potPin);
+    
+    EMA_S = (EMA_a*potVal) + ((1-EMA_a)*EMA_S);
+    Serial.println(EMA_S);
+    potColor = map(EMA_S, 25, 980, 0, 255);
+    fill_solid(brake_leds, BRAKE_LEDS, CHSV(potColor, 255, 255));
+    fill_solid(front_leds, BRAKE_LEDS, CHSV(potColor, 255, 255));
+    fill_solid(r_indicator_leds, NUM_LEDS, CHSV(potColor, 255, 255));
+    fill_solid(l_indicator_leds, NUM_LEDS, CHSV(potColor, 255, 255));
+  }	else {
+
+  //  FastLED.setBrightness(BRIGHTNESS);
+	// Brake and front lights
+	if ((brakeInput && !RIndicatorInput && !LIndicatorInput) || (brakeInput && RIndicatorInput && LIndicatorInput)) {
+		fill_solid(brake_leds, BRAKE_LEDS, CRGB::Red);
+	}
+	else if (brakeInput && !RIndicatorInput && LIndicatorInput) {
+    fill_solid(brake_leds, BRAKE_LEDS, CRGB::Red);
+    LBrakeindicatorAnimation(brake_leds);
+  }
+  else if (brakeInput && RIndicatorInput && !LIndicatorInput) {
+    fill_solid(brake_leds, BRAKE_LEDS, CRGB::Red);
+    RBrakeindicatorAnimation(brake_leds);
+   }
+  else {
+		fill_solid(brake_leds, BRAKE_LEDS, CRGB::Black);
+    fill_solid(front_leds, BRAKE_LEDS, CRGB::Black);
+	}
+
+
+ if (RIndicatorInput && !LIndicatorInput) {
+		indicatorAnimation(r_indicator_leds);
+    RFrontindicatorAnimation2(front_leds);
+    if (!brakeInput) {
+    RBrakeindicatorAnimation2(brake_leds);
+    }
+	}
+  	else if (!RIndicatorInput && LIndicatorInput) {
+		indicatorAnimation(l_indicator_leds);
+    LFrontindicatorAnimation2(front_leds);
+    if (!brakeInput) {
+      LBrakeindicatorAnimation2(brake_leds);
+    }
+	}
+	
+	else if (LIndicatorInput && RIndicatorInput) {
+		fill_solid(l_indicator_leds, NUM_LEDS, CRGB::Orange);
+		fill_solid(r_indicator_leds, NUM_LEDS, CRGB::Orange);
+	}
+	
+else {
+		fill_solid(l_indicator_leds, NUM_LEDS, CRGB::Black);
+		fill_solid(r_indicator_leds, NUM_LEDS, CRGB::Black);
+		indicatorLEDsLit = 0;
+    brakeindicatorLEDsLit = 0;
+    brakeindicatorLEDsLit2 = 0;
+    frontindicatorLEDsLit2 = 0;
+	}
+  }
+	FastLED.show();
+}
+
+void indicatorAnimation(CRGB *leds) {
+    for (int i = 0; i < (indicatorLEDsLit+15); i++) {
+      int start = (NUM_LEDS+1-i);
+      int offset = (103-i);
+      if ((offset>=0) && (offset<NUM_LEDS)) {
+        leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
+      }
+      if ((start<=88) && (start>=0)) {
+       leds[start] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+     }
+	}
+	
+	EVERY_N_MILLISECONDS(INDICATOR_MS) {
+		indicatorLEDsLit++;
+		if (indicatorLEDsLit > NUM_LEDS) indicatorLEDsLit = NUM_LEDS;
+	}
+}
+
+void RBrakeindicatorAnimation(CRGB *leds) {
+
+    for (int i = 29; i < (brakeindicatorLEDsLit+10); i++) {
+    int offset = (i-10);
+    if (offset>=0) {
+      leds[offset] = CRGB::Red;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if (i<BRAKE_LEDS) {
+    leds[i] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(RBRAKE_MS) {
+		brakeindicatorLEDsLit++;
+		if (brakeindicatorLEDsLit > BRAKE_LEDS) brakeindicatorLEDsLit = BRAKE_LEDS;
+	}
+}
+
+void RBrakeindicatorAnimation2(CRGB *leds) {
+
+    for (int i = 29; i < (brakeindicatorLEDsLit2+10); i++) {
+    int offset = (i-10);
+    if (offset>=0) {
+      leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if (i<BRAKE_LEDS) {
+    leds[i] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(RBRAKE_MS) {
+		brakeindicatorLEDsLit2++;
+		if (brakeindicatorLEDsLit2 > BRAKE_LEDS) brakeindicatorLEDsLit2 = BRAKE_LEDS;
+	}
+}
+
+void RFrontindicatorAnimation2(CRGB *leds) {
+
+    for (int i = 24; i < (frontindicatorLEDsLit2+10); i++) {
+    int offset = (i-10);
+    if (offset>=0) {
+      leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if (i<BRAKE_LEDS) {
+    leds[i] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(RBRAKE_MS) {
+		frontindicatorLEDsLit2++;
+		if (frontindicatorLEDsLit2 > BRAKE_LEDS) frontindicatorLEDsLit2 = BRAKE_LEDS;
+	}
+}
+
+void LBrakeindicatorAnimation(CRGB *leds) {
+    for (int i = 1; i < brakeindicatorLEDsLit+10; i++) {
+    int offset = (58-i);
+    int start = (48-i);
+    if ((offset<=29) && (offset>=0)) {
+      leds[offset] = CRGB::Red;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if ((start <=29) && (start >=0)) {
+    leds[start] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(BRAKE_MS) {
+		brakeindicatorLEDsLit++;
+		if (brakeindicatorLEDsLit > BRAKE_LEDS) brakeindicatorLEDsLit = BRAKE_LEDS;
+	}
+}
+
+void LBrakeindicatorAnimation2(CRGB *leds) {
+
+    for (int i = 1; i < brakeindicatorLEDsLit2+10; i++) {
+    int offset = (58-i);
+    int start = (48-i);
+    if ((offset<=29)) {
+      leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if ((start <=29) && (start >=0)) {
+    leds[start] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(BRAKE_MS) {
+		brakeindicatorLEDsLit2++;
+		if (brakeindicatorLEDsLit2 > BRAKE_LEDS) brakeindicatorLEDsLit2 = BRAKE_LEDS;
+	}
+}
+
+void LFrontindicatorAnimation2(CRGB *leds) {
+
+    for (int i = 1; i < frontindicatorLEDsLit2+10; i++) {
+    int offset = (47-i);
+    int start = (37-i);
+    if ((offset<=24)) {
+      leds[offset] = CRGB::Black;      // start turning off the LEDs after 15 have been illuminated
+    }
+    if ((start <=24) && (start >=0)) {
+    leds[start] = CRGB::Orange;           // To-do, figure out how to turn off the last 15
+    }
+	}
+
+	EVERY_N_MILLISECONDS(BRAKE_MS) {
+		frontindicatorLEDsLit2++;
+		if (frontindicatorLEDsLit2 > BRAKE_LEDS) frontindicatorLEDsLit2 = BRAKE_LEDS;
+	}
+}
